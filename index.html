@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PaletteSnap — extract stunning color palettes from any image. Upload, pick, copy HEX/RGB, export CSS variables or a PNG palette card.">
+  <title>PaletteSnap — Color Palette Extractor</title>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['"Space Grotesk"', 'sans-serif']
+          },
+          colors: {
+            surface: {
+              DEFAULT: '#0a0a0f',
+              card: '#12121c',
+              border: 'rgba(255, 255, 255, 0.08)',
+              hover: 'rgba(255, 255, 255, 0.04)'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom scrollbars and transition rules */
+    body {
+      background-color: #0a0a0f;
+      color: #f3f4f6;
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    
+    .glass-panel {
+      background: rgba(18, 18, 28, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .drop-zone-active {
+      border-color: #818cf8 !important;
+      background-color: rgba(99, 102, 241, 0.08) !important;
+      transform: scale(1.008);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen selection:bg-indigo-500 selection:text-white">
+
+  <!-- Top Navigation & Header -->
+  <header class="w-full border-b border-surface-border glass-panel sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 shadow-lg shadow-indigo-500/20 text-white">
+          <!-- Palette Icon -->
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 21a4 4 0 01-4-4 11.042 11.042 0 014-9.35A11.043 11.043 0 0117 3a4 4 0 014 4c0 2.21-1.79 4-4 4h-2a2 2 0 00-2 2v2a2 2 0 01-2 2h-4z" />
+            <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
+            <circle cx="15.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-bold font-display tracking-tight text-white flex items-center gap-2">
+            PaletteSnap
+          </h1>
+          <p class="text-xs sm:text-sm text-gray-400">Extract stunning color palettes from any image.</p>
+        </div>
+      </div>
+
+      <div id="headerActions" class="hidden flex items-center gap-2">
+        <button id="btnResetHeader" class="px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 transition border border-white/10 flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          New Image
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col justify-center">
+
+    <!-- Upload Zone Section -->
+    <section id="uploadSection" class="w-full max-w-2xl mx-auto transition-all duration-300">
+      <div 
+        id="dropZone" 
+        class="border-2 border-dashed border-gray-700 hover:border-indigo-500/80 rounded-2xl p-8 sm:p-12 text-center glass-panel cursor-pointer transition-all duration-200 group relative overflow-hidden"
+      >
+        <input type="file" id="fileInput" accept="image/*" class="hidden" />
+
+        <div class="flex flex-col items-center justify-center space-y-4">
+          <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-500/20 transition-all duration-300">
+            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
+
+          <div class="space-y-1">
+            <p class="text-base sm:text-lg font-semibold text-white">
+              Drag & drop your image here, or <span class="text-indigo-400 underline decoration-indigo-400/50 underline-offset-4 group-hover:decoration-indigo-400">browse</span>
+            </p>
+            <p class="text-xs sm:text-sm text-gray-400">Supports PNG, JPG, WEBP, AVIF, and SVG</p>
+          </div>
+
+          <div class="pt-4 flex flex-col sm:flex-row items-center gap-3">
+            <button 
+              type="button" 
+              id="btnSampleImage" 
+              class="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-indigo-300 hover:text-white bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-700/40 transition flex items-center gap-2 shadow-sm"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              Try a sample image
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Friendly error prompt -->
+      <div id="errorMessage" class="hidden mt-4 p-3 rounded-xl bg-red-950/40 border border-red-800/50 text-red-300 text-xs sm:text-sm flex items-center gap-2">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <span id="errorText">Please select a valid image file.</span>
+      </div>
+    </section>
+
+    <!-- Result Section (Preview + Swatches + Actions) -->
+    <section id="resultSection" class="hidden flex flex-col gap-8 transition-opacity duration-300">
+      
+      <!-- Top Action Control Bar -->
+      <div class="glass-panel rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
+        <!-- Palette Size Selector -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs sm:text-sm font-medium text-gray-400">Colors:</span>
+          <div class="inline-flex rounded-xl bg-black/40 p-1 border border-white/10" id="countToggleGroup">
+            <button data-count="4" class="count-btn px-3 py-1 rounded-lg text-xs font-semibold text-gray-400 hover:text-white transition">4</button>
+            <button data-count="6" class="count-btn px-3 py-1 rounded-lg text-xs font-semibold text-gray-400 hover:text-white transition">6</button>
+            <button data-count="8" class="count-btn px-3 py-1 rounded-lg text-xs font-semibold text-white bg-indigo-600 shadow-sm transition">8</button>
+            <button data-count="10" class="count-btn px-3 py-1 rounded-lg text-xs font-semibold text-gray-400 hover:text-white transition">10</button>
+          </div>
+        </div>
+
+        <!-- Export Buttons & Reset -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button id="btnCopyCss" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium text-white bg-white/5 hover:bg-white/10 border border-white/10 transition flex items-center gap-1.5 shadow-sm">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+            Copy as CSS Variables
+          </button>
+
+          <button id="btnDownloadPng" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 transition flex items-center gap-1.5 shadow-md shadow-indigo-600/30">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download PNG
+          </button>
+
+          <button id="btnReset" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition">
+            New image
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Stage: Image Preview and Generated Palette -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left: Uploaded Image Card -->
+        <div class="lg:col-span-5 glass-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+          <div class="flex items-center justify-between text-xs text-gray-400 font-medium">
+            <span>Source Image</span>
+            <span id="imageMeta" class="text-gray-500 font-mono"></span>
+          </div>
+          <div class="w-full rounded-xl overflow-hidden bg-black/40 flex items-center justify-center border border-white/5 max-h-96">
+            <img id="imagePreview" src="" alt="Source preview" class="w-full h-auto max-h-96 object-contain rounded-lg transition-transform duration-300" />
+          </div>
+        </div>
+
+        <!-- Right: Swatches Container -->
+        <div class="lg:col-span-7 flex flex-col gap-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold tracking-wide uppercase text-gray-400">Extracted Dominant Palette</h2>
+            <span class="text-xs text-gray-500">Click any swatch to copy HEX</span>
+          </div>
+
+          <!-- Dynamic Swatch Grid/Row -->
+          <div id="swatchesContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+            <!-- Swatches will be dynamically injected here -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification -->
+  <div 
+    id="toast" 
+    class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 pointer-events-none transition-all duration-300 ease-out glass-panel !bg-gray-900/90 text-white px-4 py-2.5 rounded-xl border border-indigo-500/40 shadow-xl flex items-center gap-2.5 text-xs sm:text-sm"
+  >
+    <div class="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+    <span id="toastMessage">Copied to clipboard!</span>
+  </div>
+
+  <!-- Offscreen canvas for sampling & PNG export -->
+  <canvas id="offscreenCanvas" class="hidden"></canvas>
+
+  <!-- Footer -->
+  <footer class="w-full border-t border-surface-border glass-panel py-4 mt-auto">
+    <div class="max-w-6xl mx-auto px-4 text-center">
+      <p class="text-xs sm:text-sm text-gray-500">PaletteSnap — crafted for designers & developers.</p>
+    </div>
+  </footer>
+
+  <script>
+    /* ==========================================================================
+       CONFIG & APPLICATION STATE
+       ========================================================================== */
+    const CONFIG = {
+      MAX_SAMPLE_DIMENSION: 100, // Downscale image to max 100px for speed
+      MIN_COLOR_DISTANCE: 40,    // Euclidean distance threshold for visual distinctness
+      DEFAULT_COLOR_COUNT: 8,
+      EXPORT_PNG_WIDTH: 1200,
+      EXPORT_PNG_HEIGHT: 630
+    };
+
+    const STATE = {
+      currentImageElement: null,
+      currentColors: [],
+      selectedCount: CONFIG.DEFAULT_COLOR_COUNT
+    };
+
+    /* ==========================================================================
+       DOM REFERENCES
+       ========================================================================== */
+    const DOM = {
+      uploadSection: document.getElementById('uploadSection'),
+      resultSection: document.getElementById('resultSection'),
+      dropZone: document.getElementById('dropZone'),
+      fileInput: document.getElementById('fileInput'),
+      btnSampleImage: document.getElementById('btnSampleImage'),
+      imagePreview: document.getElementById('imagePreview'),
+      imageMeta: document.getElementById('imageMeta'),
+      swatchesContainer: document.getElementById('swatchesContainer'),
+      countToggleGroup: document.getElementById('countToggleGroup'),
+      btnCopyCss: document.getElementById('btnCopyCss'),
+      btnDownloadPng: document.getElementById('btnDownloadPng'),
+      btnReset: document.getElementById('btnReset'),
+      btnResetHeader: document.getElementById('btnResetHeader'),
+      headerActions: document.getElementById('headerActions'),
+      toast: document.getElementById('toast'),
+      toastMessage: document.getElementById('toastMessage'),
+      errorMessage: document.getElementById('errorMessage'),
+      errorText: document.getElementById('errorText'),
+      offscreenCanvas: document.getElementById('offscreenCanvas')
+    };
+
+    /* ==========================================================================
+       HELPERS & COLOR CONVERSIONS
+       ========================================================================== */
+    function rgbToHex(r, g, b) {
+      return '#' + [r, g, b].map(x => {
+        const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      }).join('').toUpperCase();
+    }
+
+    function colorDistance(c1, c2) {
+      const dr = c1.r - c2.r;
+      const dg = c1.g - c2.g;
+      const db = c1.b - c2.b;
+      return Math.sqrt(dr * dr + dg * dg + db * db);
+    }
+
+    function getLuminance(r, g, b) {
+      // Relative luminance formula to determine dark/light text contrast
+      return 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
+    }
+
+    /* Fallback and safe clipboard copy without navigator.clipboard issues in sandboxes */
+    function copyText(text, successMessage) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast(successMessage || 'Copied to clipboard!');
+      } catch (err) {
+        showToast('Unable to copy text.');
+      }
+    }
+
+    let toastTimeout = null;
+    function showToast(message) {
+      if (toastTimeout) clearTimeout(toastTimeout);
+      DOM.toastMessage.textContent = message;
+      DOM.toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+      DOM.toast.classList.add('translate-y-0', 'opacity-100');
+
+      toastTimeout = setTimeout(() => {
+        DOM.toast.classList.remove('translate-y-0', 'opacity-100');
+        DOM.toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+      }, 2600);
+    }
+
+    function showError(msg) {
+      DOM.errorText.textContent = msg;
+      DOM.errorMessage.classList.remove('hidden');
+    }
+
+    function clearError() {
+      DOM.errorMessage.classList.add('hidden');
+    }
+
+    /* ==========================================================================
+       COLOR EXTRACTION ALGORITHM
+       ========================================================================== */
+    function extractPalette(imgElement, count) {
+      const canvas = DOM.offscreenCanvas;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return [];
+
+      // Calculate downscaled dimensions (max 100px on the longest side)
+      let w = imgElement.naturalWidth || imgElement.width || 100;
+      let h = imgElement.naturalHeight || imgElement.height || 100;
+      
+      const maxDim = CONFIG.MAX_SAMPLE_DIMENSION;
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+
+      canvas.width = Math.max(1, w);
+      canvas.height = Math.max(1, h);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+
+      let imgData;
+      try {
+        imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      } catch (err) {
+        showError('Could not read image pixel data.');
+        return [];
+      }
+
+      // Quantize each channel to 4 bits (16 levels per channel -> 4096 bins)
+      const colorBins = new Map();
+      for (let i = 0; i < imgData.length; i += 4) {
+        const r = imgData[i];
+        const g = imgData[i + 1];
+        const b = imgData[i + 2];
+        const a = imgData[i + 3];
+
+        // Skip near-transparent pixels
+        if (a < 128) continue;
+
+        // 4-bit quantization (range 0..15)
+        const qR = r >> 4;
+        const qG = g >> 4;
+        const qB = b >> 4;
+        const key = (qR << 8) | (qG << 4) | qB;
+
+        colorBins.set(key, (colorBins.get(key) || 0) + 1);
+      }
+
+      // Sort quantized bins by frequency descending
+      const sortedBins = Array.from(colorBins.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([key, freq]) => {
+          const qR = (key >> 8) & 0x0f;
+          const qG = (key >> 4) & 0x0f;
+          const qB = key & 0x0f;
+          // Scale back 4-bit values to 8-bit (0..255)
+          const r = Math.round((qR / 15) * 255);
+          const g = Math.round((qG / 15) * 255);
+          const b = Math.round((qB / 15) * 255);
+          return { r, g, b, hex: rgbToHex(r, g, b), count: freq };
+        });
+
+      // Distinctness filtering: ensure Euclidean distance >= 40
+      const selected = [];
+      for (const candidate of sortedBins) {
+        if (selected.length >= count) break;
+        
+        let isDistinct = true;
+        for (const picked of selected) {
+          if (colorDistance(candidate, picked) < CONFIG.MIN_COLOR_DISTANCE) {
+            isDistinct = false;
+            break;
+          }
+        }
+
+        if (isDistinct) {
+          selected.push(candidate);
+        }
+      }
+
+      // Fallback: If distinct threshold leaves us with fewer colors than requested,
+      // fill remaining slots with top unused colors to satisfy user preference
+      if (selected.length < count && sortedBins.length > selected.length) {
+        for (const candidate of sortedBins) {
+          if (selected.length >= count) break;
+          if (!selected.some(c => c.hex === candidate.hex)) {
+            selected.push(candidate);
+          }
+        }
+      }
+
+      return selected;
+    }
+
+    /* ==========================================================================
+       RENDER FUNCTIONS
+       ========================================================================== */
+    function renderPalette() {
+      if (!STATE.currentImageElement) return;
+
+      STATE.currentColors = extractPalette(STATE.currentImageElement, STATE.selectedCount);
+      DOM.swatchesContainer.innerHTML = '';
+
+      STATE.currentColors.forEach((color, index) => {
+        const isLight = getLuminance(color.r, color.g, color.b) > 0.6;
+        const textColorClass = isLight ? 'text-gray-900' : 'text-white';
+        const subTextColorClass = isLight ? 'text-gray-700/80' : 'text-gray-300/80';
+        const badgeBgClass = isLight ? 'bg-black/10' : 'bg-white/10';
+
+        const card = document.createElement('div');
+        card.className = 'group relative rounded-2xl p-4 flex flex-col justify-between h-36 sm:h-44 transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl cursor-pointer border border-white/10 select-none overflow-hidden';
+        card.style.backgroundColor = color.hex;
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between z-10">
+            <span class="text-[10px] sm:text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${badgeBgClass} ${textColorClass}">
+              #${index + 1}
+            </span>
+            <span class="text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-200 px-2 py-0.5 rounded-md ${badgeBgClass} ${textColorClass} flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copy
+            </span>
+          </div>
+
+          <div class="z-10 mt-auto">
+            <div class="font-mono font-bold text-sm sm:text-base tracking-wider ${textColorClass}">
+              ${color.hex}
+            </div>
+            <div class="text-[11px] font-mono tracking-tight ${subTextColorClass} opacity-80 group-hover:opacity-100 transition">
+              rgb(${color.r}, ${color.g}, ${color.b})
+            </div>
+          </div>
+
+          <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+        `;
+
+        card.addEventListener('click', () => {
+          copyText(color.hex, `${color.hex} copied!`);
+        });
+
+        DOM.swatchesContainer.appendChild(card);
+      });
+    }
+
+    function displayLoadedImage(img, filename) {
+      STATE.currentImageElement = img;
+      DOM.imagePreview.src = img.src;
+      DOM.imageMeta.textContent = `${img.naturalWidth || img.width} × ${img.naturalHeight || img.height} px`;
+      
+      DOM.uploadSection.classList.add('hidden');
+      DOM.resultSection.classList.remove('hidden');
+      DOM.headerActions.classList.remove('hidden');
+
+      renderPalette();
+    }
+
+    function resetApp() {
+      STATE.currentImageElement = null;
+      STATE.currentColors = [];
+      DOM.fileInput.value = '';
+      DOM.imagePreview.src = '';
+      DOM.swatchesContainer.innerHTML = '';
+      DOM.resultSection.classList.add('hidden');
+      DOM.headerActions.classList.add('hidden');
+      DOM.uploadSection.classList.remove('hidden');
+      clearError();
+    }
+
+    /* ==========================================================================
+       EXPORT FEATURES
+       ========================================================================== */
+    function copyAsCssVariables() {
+      if (!STATE.currentColors || STATE.currentColors.length === 0) return;
+
+      const lines = STATE.currentColors.map((color, idx) => `  --color-${idx + 1}: ${color.hex};`);
+      const cssString = `:root {\n${lines.join('\n')}\n}`;
+
+      copyText(cssString, 'CSS Variables copied to clipboard!');
+    }
+
+    function downloadPalettePng() {
+      if (!STATE.currentColors || STATE.currentColors.length === 0) return;
+
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = CONFIG.EXPORT_PNG_WIDTH;
+      exportCanvas.height = CONFIG.EXPORT_PNG_HEIGHT;
+      const ctx = exportCanvas.getContext('2d');
+      if (!ctx) return;
+
+      // Dark background
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+      // Subtle background grid accent
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+      for (let i = 0; i < exportCanvas.width; i += 40) {
+        ctx.fillRect(i, 0, 1, exportCanvas.height);
+      }
+      for (let j = 0; j < exportCanvas.height; j += 40) {
+        ctx.fillRect(0, j, exportCanvas.width, 1);
+      }
+
+      // App Title and Subtitle header on the exported banner
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 36px "Space Grotesk", sans-serif';
+      ctx.fillText('PaletteSnap', 80, 100);
+
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '18px "Inter", sans-serif';
+      ctx.fillText('Extracted Color Palette', 80, 134);
+
+      // Draw Swatches
+      const colors = STATE.currentColors;
+      const marginX = 80;
+      const availableWidth = exportCanvas.width - (marginX * 2);
+      const gap = 16;
+      const swatchWidth = (availableWidth - (gap * (colors.length - 1))) / colors.length;
+      const swatchTop = 180;
+      const swatchHeight = 320;
+      const radius = 16;
+
+      colors.forEach((color, i) => {
+        const x = marginX + (i * (swatchWidth + gap));
+        const y = swatchTop;
+
+        // Rounded Swatch
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + swatchWidth - radius, y);
+        ctx.quadraticCurveTo(x + swatchWidth, y, x + swatchWidth, y + radius);
+        ctx.lineTo(x + swatchWidth, y + swatchHeight - radius);
+        ctx.quadraticCurveTo(x + swatchWidth, y + swatchHeight, x + swatchWidth - radius, y + swatchHeight);
+        ctx.lineTo(x + radius, y + swatchHeight);
+        ctx.quadraticCurveTo(x, y + swatchHeight, x, y + swatchHeight - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+        ctx.clip();
+
+        // Fill color
+        ctx.fillStyle = color.hex;
+        ctx.fillRect(x, y, swatchWidth, swatchHeight);
+
+        // Draw Swatch Details (font scales down when many swatches share the width)
+        const isLight = getLuminance(color.r, color.g, color.b) > 0.6;
+        const hexFontSize = swatchWidth < 120 ? 14 : 18;
+        const rgbFontSize = swatchWidth < 120 ? 11 : 13;
+        ctx.fillStyle = isLight ? '#111827' : '#ffffff';
+        ctx.font = `bold ${hexFontSize}px "Inter", monospace`;
+        ctx.fillText(color.hex, x + 16, y + swatchHeight - 38);
+
+        ctx.fillStyle = isLight ? 'rgba(17, 24, 39, 0.75)' : 'rgba(255, 255, 255, 0.75)';
+        ctx.font = `${rgbFontSize}px "Inter", monospace`;
+        ctx.fillText(`${color.r}, ${color.g}, ${color.b}`, x + 16, y + swatchHeight - 16);
+
+        ctx.restore();
+      });
+
+      // Footer line on PNG
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '14px "Inter", sans-serif';
+      ctx.fillText('palettesnap-palette.png', 80, 560);
+
+      // Trigger automatic download
+      const dataUrl = exportCanvas.toDataURL('image/png');
+      const downloadLink = document.createElement('a');
+      downloadLink.download = 'palettesnap-palette.png';
+      downloadLink.href = dataUrl;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      
+      showToast('Downloaded palette image!');
+    }
+
+    /* ==========================================================================
+       SAMPLE IMAGE GENERATOR (CANVAS-BASED, ZERO EXTERNAL ASSETS)
+       ========================================================================== */
+    function generateSampleImage() {
+      clearError();
+      const canvas = document.createElement('canvas');
+      canvas.width = 600;
+      canvas.height = 450;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Vivid abstract gradient composition
+      const gradient = ctx.createLinearGradient(0, 0, 600, 450);
+      gradient.addColorStop(0, '#0f172a');
+      gradient.addColorStop(0.35, '#312e81');
+      gradient.addColorStop(0.7, '#ec4899');
+      gradient.addColorStop(1, '#f97316');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 600, 450);
+
+      // Geometric glass-like shapes with vibrant fills
+      const circles = [
+        { x: 160, y: 140, r: 90, color: '#38bdf8' },
+        { x: 440, y: 180, r: 120, color: '#a855f7' },
+        { x: 280, y: 310, r: 100, color: '#fbbf24' },
+        { x: 490, y: 360, r: 70, color: '#10b981' }
+      ];
+
+      circles.forEach(c => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+        ctx.fillStyle = c.color;
+        ctx.shadowColor = 'rgba(0,0,0,0.4)';
+        ctx.shadowBlur = 30;
+        ctx.globalAlpha = 0.85;
+        ctx.fill();
+        ctx.restore();
+      });
+
+      const img = new Image();
+      img.onload = () => {
+        displayLoadedImage(img, 'sample-image.png');
+      };
+      img.src = canvas.toDataURL('image/png');
+    }
+
+    /* ==========================================================================
+       EVENT LISTENERS
+       ========================================================================== */
+    function handleFile(file) {
+      clearError();
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+        showError('Please upload an image file (PNG, JPG, WEBP, or SVG).');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          displayLoadedImage(img, file.name);
+        };
+        img.onerror = () => {
+          showError('Corrupted or unreadable image file.');
+        };
+        img.src = e.target.result;
+      };
+      reader.onerror = () => {
+        showError('Error reading uploaded file.');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Dropzone click & drag-and-drop
+    DOM.dropZone.addEventListener('click', (e) => {
+      if (e.target.closest('#btnSampleImage')) return;
+      DOM.fileInput.click();
+    });
+
+    DOM.fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      DOM.dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        DOM.dropZone.classList.add('drop-zone-active');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      DOM.dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        DOM.dropZone.classList.remove('drop-zone-active');
+      });
+    });
+
+    DOM.dropZone.addEventListener('drop', (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleFile(file);
+    });
+
+    // Sample image button
+    DOM.btnSampleImage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      generateSampleImage();
+    });
+
+    // Color count buttons toggle
+    DOM.countToggleGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.count-btn');
+      if (!btn) return;
+
+      const count = parseInt(btn.dataset.count, 10);
+      if (count === STATE.selectedCount) return;
+
+      STATE.selectedCount = count;
+
+      // Update button styling
+      DOM.countToggleGroup.querySelectorAll('.count-btn').forEach(b => {
+        b.classList.remove('text-white', 'bg-indigo-600', 'shadow-sm');
+        b.classList.add('text-gray-400');
+      });
+      btn.classList.add('text-white', 'bg-indigo-600', 'shadow-sm');
+      btn.classList.remove('text-gray-400');
+
+      renderPalette();
+    });
+
+    // Action button bindings
+    DOM.btnCopyCss.addEventListener('click', copyAsCssVariables);
+    DOM.btnDownloadPng.addEventListener('click', downloadPalettePng);
+    DOM.btnReset.addEventListener('click', resetApp);
+    DOM.btnResetHeader.addEventListener('click', resetApp);
+  </script>
+</body>
+</html>
